@@ -1,0 +1,411 @@
+# --------------------------------------------------------------------------
+#
+# MiSTer project
+#
+# WARNING WARNING WARNING:
+# Do not add files to project in Quartus IDE! It will mess this file!
+# Add the files manually to files.qip file.
+#
+# --------------------------------------------------------------------------
+
+set_global_assignment -name TOP_LEVEL_ENTITY sys_top
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+
+set_global_assignment -name LAST_QUARTUS_VERSION "17.0.0 Lite Edition"
+
+set_global_assignment -name GENERATE_RBF_FILE ON
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+# Deliberately NOT "ALL".
+#
+# This machine has 22 logical cores and three arcade projects share it, and
+# every one of their .qsf files asked for ALL of them.  Three builds each
+# taking every thread do not corrupt anything -- separate projects have
+# separate db/, incremental_db/ and output_files/ -- they just fight in the
+# scheduler and all finish later.
+#
+# Capping this lane at 4 keeps it a good neighbour: it can build at any time
+# without waiting for the other two, at the cost of its own wall time.  That
+# trade is deliberate.  The other projects' .qsf files are not touched.
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+set_global_assignment -name SAVE_DISK_SPACE OFF
+set_global_assignment -name SMART_RECOMPILE ON
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name TIMEQUEST_MULTICORNER_ANALYSIS OFF
+set_global_assignment -name OPTIMIZE_POWER_DURING_FITTING OFF
+set_global_assignment -name FINAL_PLACEMENT_OPTIMIZATION ALWAYS
+# Tried "AUTO FIT" to shorten the build; quartus_fit 17.0 then died with an
+# access violation in sta_find_duplicates_of_deleted_net_name during physical
+# synthesis.  Not worth chasing -- the build-time win came from the two
+# MISTER_DISABLE macros below instead (synthesis 2:55 -> 1:25).
+set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
+set_global_assignment -name OPTIMIZATION_MODE "HIGH PERFORMANCE EFFORT"
+set_global_assignment -name ALLOW_POWER_UP_DONT_CARE ON
+set_global_assignment -name QII_AUTO_PACKED_REGISTERS NORMAL
+set_global_assignment -name ROUTER_LCELL_INSERTION_AND_LOGIC_DUPLICATION ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC OFF
+# Physical synthesis turned OFF 2026-08-22, all of it.
+#
+# Quartus 17.0's fitter dies with an access violation inside
+# sta_find_duplicates_of_deleted_net_name immediately after the physical
+# synthesis passes run -- STA then walks nets those passes deleted.  It was
+# intermittent for months; this session's diagnostic registers made it
+# reliable, and it kept crashing at the same point with
+# PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION already off.  Five crashes in a row.
+#
+# The core clock had +2.7 ns of slack with these on, so the optimisation is
+# affordable, and build.sh now fails the build if End-trace appears rather than
+# leaving a stale .rbf looking finished.  Turn them back on and re-measure if a
+# later Quartus is ever used.
+# Turned OFF 2026-08-22.  Quartus 17.0's fitter dies with an access violation
+# in sta_find_duplicates_of_deleted_net_name immediately after physical
+# synthesis reports "Created N register duplicates" -- STA then walks nets that
+# the duplication pass deleted.  It was intermittent for months and became
+# reliable once this session's diagnostic registers pushed the duplicate count
+# up (188 on the failing run).  Three retries in a row crashed at the same
+# point, so "just run it again" (KNOWN_ISSUES.md lesson 11) has stopped being
+# the answer.  Timing has ~3.7 ns of slack on the core clock, so the lost
+# optimisation is affordable; check_pll and the Setup Summary still gate it.
+set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_DUPLICATION OFF
+set_global_assignment -name PHYSICAL_SYNTHESIS_REGISTER_RETIMING OFF
+set_global_assignment -name OPTIMIZATION_TECHNIQUE SPEED
+set_global_assignment -name MUX_RESTRUCTURE ON
+set_global_assignment -name REMOVE_REDUNDANT_LOGIC_CELLS ON
+set_global_assignment -name AUTO_DELAY_CHAINS_FOR_HIGH_FANOUT_INPUT_PINS ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_COMBO_LOGIC_FOR_AREA OFF
+set_global_assignment -name ADV_NETLIST_OPT_SYNTH_WYSIWYG_REMAP ON
+set_global_assignment -name SYNTH_GATED_CLOCK_CONVERSION ON
+set_global_assignment -name PRE_MAPPING_RESYNTHESIS ON
+set_global_assignment -name ROUTER_CLOCKING_TOPOLOGY_ANALYSIS ON
+set_global_assignment -name ECO_OPTIMIZE_TIMING ON
+set_global_assignment -name PERIPHERY_TO_CORE_PLACEMENT_AND_ROUTING_OPTIMIZATION ON
+set_global_assignment -name PHYSICAL_SYNTHESIS_ASYNCHRONOUS_SIGNAL_PIPELINING OFF
+set_global_assignment -name ALM_REGISTER_PACKING_EFFORT MEDIUM
+# 2026-08-23: seed 1 placed the HDMI PLL domain at -0.044 ns setup on this
+# RTL.  The path is in MiSTer framework code and the same clock has read from
+# -0.044 to +0.720 across builds, so the seed is the knob, not the design.
+# build.sh now fails a build that does not meet timing, which is what made this
+# visible at all.
+# Seed inherited from NA-1/NA-2 as a starting point, not a measured optimum
+# for this design.  The fitter's placement varies run to run.
+#
+# 2026-09-02: seed 3 went to -0.018 ns on the same HDMI PLL path after the
+# sprite-RAM debug counters were added.  Re-running the flow does NOT help --
+# with identical inputs the fitter is deterministic and reproduces the same
+# placement, so "rebuild first" only applies when something changed.  Moved to
+# 4.  Recorded because the next person will hit this and try a plain rebuild.
+set_global_assignment -name SEED 4
+
+# No MISTER_FB here.  Power Spikes is horizontal (MAME rotate=0), so nothing
+# rotates, so there is no DDR framebuffer and the FB_* ports are tied off in
+# ShadowForce.sv.  NA-1/NA-2 needs it for its two vertical games; copying that
+# line over would cost resources for a path this core never takes.
+
+#enable it only if 8bit indexed mode is used in core
+#set_global_assignment -name VERILOG_MACRO "MISTER_FB_PALETTE=1"
+
+#do not enable DEBUG_NOHDMI in release!
+#set_global_assignment -name VERILOG_MACRO "MISTER_DEBUG_NOHDMI=1"
+
+# disable bilinear filtering when downscaling
+#set_global_assignment -name VERILOG_MACRO "MISTER_DOWNSCALE_NN=1"
+
+# disable adaptive scanline filtering
+#set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_ADAPTIVE=1"
+
+#use only 1MB per frame for scaler to free ~21MB DDR3 RAM
+#set_global_assignment -name VERILOG_MACRO "MISTER_SMALL_VBUF=1"
+
+# Disable YC / Composite output to save some resources
+# Neither is used by this core, and leaving them out makes the build faster and
+# the fit easier.
+set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_YC=1"
+
+# Disable ALSA audio output to save some resources
+set_global_assignment -name VERILOG_MACRO "MISTER_DISABLE_ALSA=1"
+
+source ../../../../../platforms/mister/sys/sys.tcl
+set_global_assignment -name FAMILY "Cyclone V"
+set_global_assignment -name DEVICE 5CSEBA6U23I7
+set_global_assignment -name DEVICE_FILTER_PACKAGE UFBGA
+set_global_assignment -name DEVICE_FILTER_PIN_COUNT 672
+set_global_assignment -name DEVICE_FILTER_SPEED_GRADE 7
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADC_CONVST
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADC_SCK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADC_SDI
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ADC_SDO
+set_location_assignment PIN_U9 -to ADC_CONVST
+set_location_assignment PIN_V10 -to ADC_SCK
+set_location_assignment PIN_AC4 -to ADC_SDI
+set_location_assignment PIN_AD4 -to ADC_SDO
+set_location_assignment PIN_U14 -to IO_SCL
+set_location_assignment PIN_AG9 -to IO_SDA
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to IO_S*
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to IO_S*
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to IO_S*
+set_location_assignment PIN_AF17 -to USER_IO[6]
+set_location_assignment PIN_AF15 -to USER_IO[5]
+set_location_assignment PIN_AG16 -to USER_IO[4]
+set_location_assignment PIN_AH11 -to USER_IO[3]
+set_location_assignment PIN_AH12 -to USER_IO[2]
+set_location_assignment PIN_AH9 -to USER_IO[1]
+set_location_assignment PIN_AG11 -to USER_IO[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to USER_IO[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to USER_IO[*]
+set_location_assignment PIN_AH7 -to SDCD_SPDIF
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDCD_SPDIF
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDCD_SPDIF
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDCD_SPDIF
+set_location_assignment PIN_Y11 -to SDRAM_A[0]
+set_location_assignment PIN_AA26 -to SDRAM_A[1]
+set_location_assignment PIN_AA13 -to SDRAM_A[2]
+set_location_assignment PIN_AA11 -to SDRAM_A[3]
+set_location_assignment PIN_W11 -to SDRAM_A[4]
+set_location_assignment PIN_Y19 -to SDRAM_A[5]
+set_location_assignment PIN_AB23 -to SDRAM_A[6]
+set_location_assignment PIN_AC23 -to SDRAM_A[7]
+set_location_assignment PIN_AC22 -to SDRAM_A[8]
+set_location_assignment PIN_C12 -to SDRAM_A[9]
+set_location_assignment PIN_AB26 -to SDRAM_A[10]
+set_location_assignment PIN_AD17 -to SDRAM_A[11]
+set_location_assignment PIN_D12 -to SDRAM_A[12]
+set_location_assignment PIN_Y17 -to SDRAM_BA[0]
+set_location_assignment PIN_AB25 -to SDRAM_BA[1]
+set_location_assignment PIN_V12 -to SDRAM_DQ[0]
+set_location_assignment PIN_E8 -to SDRAM_DQ[1]
+set_location_assignment PIN_D11 -to SDRAM_DQ[2]
+set_location_assignment PIN_W12 -to SDRAM_DQ[3]
+set_location_assignment PIN_AH13 -to SDRAM_DQ[4]
+set_location_assignment PIN_D8 -to SDRAM_DQ[5]
+set_location_assignment PIN_AH14 -to SDRAM_DQ[6]
+set_location_assignment PIN_AF7 -to SDRAM_DQ[7]
+set_location_assignment PIN_AE24 -to SDRAM_DQ[8]
+set_location_assignment PIN_AD23 -to SDRAM_DQ[9]
+set_location_assignment PIN_AE6 -to SDRAM_DQ[10]
+set_location_assignment PIN_AE23 -to SDRAM_DQ[11]
+set_location_assignment PIN_AG14 -to SDRAM_DQ[12]
+set_location_assignment PIN_AD5 -to SDRAM_DQ[13]
+set_location_assignment PIN_AF4 -to SDRAM_DQ[14]
+set_location_assignment PIN_AH3 -to SDRAM_DQ[15]
+set_location_assignment PIN_AG13 -to SDRAM_DQML
+set_location_assignment PIN_AF13 -to SDRAM_DQMH
+set_location_assignment PIN_AD20 -to SDRAM_CLK
+set_location_assignment PIN_AG10 -to SDRAM_CKE
+set_location_assignment PIN_AA19 -to SDRAM_nWE
+set_location_assignment PIN_AA18 -to SDRAM_nCAS
+set_location_assignment PIN_Y18 -to SDRAM_nCS
+set_location_assignment PIN_W14 -to SDRAM_nRAS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDRAM_*
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_*
+set_instance_assignment -name FAST_OUTPUT_ENABLE_REGISTER ON -to SDRAM_DQ[*]
+set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
+set_instance_assignment -name ALLOW_SYNCH_CTRL_USAGE OFF -to *|SDRAM_*
+set_location_assignment PIN_AE15 -to SD_SPI_CS
+set_location_assignment PIN_AH8 -to SD_SPI_MISO
+set_location_assignment PIN_AG8 -to SD_SPI_CLK
+set_location_assignment PIN_U13 -to SD_SPI_MOSI
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SD_SPI*
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SD_SPI*
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SD_SPI*
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK1_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK2_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to FPGA_CLK3_50
+set_location_assignment PIN_V11 -to FPGA_CLK1_50
+set_location_assignment PIN_Y13 -to FPGA_CLK2_50
+set_location_assignment PIN_E11 -to FPGA_CLK3_50
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2C_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_I2S
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_LRCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_MCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_SCLK
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to HDMI_TX_*
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_TX_D[*]
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_TX_DE
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_TX_HS
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_TX_VS
+set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to HDMI_TX_CLK
+set_location_assignment PIN_U10 -to HDMI_I2C_SCL
+set_location_assignment PIN_AA4 -to HDMI_I2C_SDA
+set_location_assignment PIN_T13 -to HDMI_I2S
+set_location_assignment PIN_T11 -to HDMI_LRCLK
+set_location_assignment PIN_U11 -to HDMI_MCLK
+set_location_assignment PIN_T12 -to HDMI_SCLK
+set_location_assignment PIN_AG5 -to HDMI_TX_CLK
+set_location_assignment PIN_AD19 -to HDMI_TX_DE
+set_location_assignment PIN_AD12 -to HDMI_TX_D[0]
+set_location_assignment PIN_AE12 -to HDMI_TX_D[1]
+set_location_assignment PIN_W8 -to HDMI_TX_D[2]
+set_location_assignment PIN_Y8 -to HDMI_TX_D[3]
+set_location_assignment PIN_AD11 -to HDMI_TX_D[4]
+set_location_assignment PIN_AD10 -to HDMI_TX_D[5]
+set_location_assignment PIN_AE11 -to HDMI_TX_D[6]
+set_location_assignment PIN_Y5 -to HDMI_TX_D[7]
+set_location_assignment PIN_AF10 -to HDMI_TX_D[8]
+set_location_assignment PIN_Y4 -to HDMI_TX_D[9]
+set_location_assignment PIN_AE9 -to HDMI_TX_D[10]
+set_location_assignment PIN_AB4 -to HDMI_TX_D[11]
+set_location_assignment PIN_AE7 -to HDMI_TX_D[12]
+set_location_assignment PIN_AF6 -to HDMI_TX_D[13]
+set_location_assignment PIN_AF8 -to HDMI_TX_D[14]
+set_location_assignment PIN_AF5 -to HDMI_TX_D[15]
+set_location_assignment PIN_AE4 -to HDMI_TX_D[16]
+set_location_assignment PIN_AH2 -to HDMI_TX_D[17]
+set_location_assignment PIN_AH4 -to HDMI_TX_D[18]
+set_location_assignment PIN_AH5 -to HDMI_TX_D[19]
+set_location_assignment PIN_AH6 -to HDMI_TX_D[20]
+set_location_assignment PIN_AG6 -to HDMI_TX_D[21]
+set_location_assignment PIN_AF9 -to HDMI_TX_D[22]
+set_location_assignment PIN_AE8 -to HDMI_TX_D[23]
+set_location_assignment PIN_T8 -to HDMI_TX_HS
+set_location_assignment PIN_AF11 -to HDMI_TX_INT
+set_location_assignment PIN_V13 -to HDMI_TX_VS
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to KEY[1]
+set_location_assignment PIN_AH17 -to KEY[0]
+set_location_assignment PIN_AH16 -to KEY[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[4]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[5]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[6]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED[7]
+set_location_assignment PIN_W15 -to LED[0]
+set_location_assignment PIN_AA24 -to LED[1]
+set_location_assignment PIN_V16 -to LED[2]
+set_location_assignment PIN_V15 -to LED[3]
+set_location_assignment PIN_AF26 -to LED[4]
+set_location_assignment PIN_AE26 -to LED[5]
+set_location_assignment PIN_Y16 -to LED[6]
+set_location_assignment PIN_AA23 -to LED[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SW[3]
+set_location_assignment PIN_Y24 -to SW[0]
+set_location_assignment PIN_W24 -to SW[1]
+set_location_assignment PIN_W21 -to SW[2]
+set_location_assignment PIN_W20 -to SW[3]
+set_hps_location_assignment HPSINTERFACEPERIPHERALSPIMASTER_X52_Y72_N111 -to spi
+set_hps_location_assignment HPSINTERFACEPERIPHERALUART_X52_Y67_N111 -to uart
+set_hps_location_assignment HPSINTERFACEPERIPHERALI2C_X52_Y60_N111 -to hdmi_i2c
+set_global_assignment -name PRE_FLOW_SCRIPT_FILE "quartus_sh:../../../../../platforms/mister/sys/build_id.tcl"
+set_global_assignment -name CDF_FILE jtag.cdf
+set_global_assignment -name QIP_FILE ../../../../../platforms/mister/sys/sys.qip
+source ../../../../../platforms/mister/sys/sys_analog.tcl
+set_location_assignment PIN_AF25 -to SDIO_DAT[0]
+set_location_assignment PIN_AF23 -to SDIO_DAT[1]
+set_location_assignment PIN_AD26 -to SDIO_DAT[2]
+set_location_assignment PIN_AF28 -to SDIO_DAT[3]
+set_location_assignment PIN_AF27 -to SDIO_CMD
+set_location_assignment PIN_AH26 -to SDIO_CLK
+set_instance_assignment -name CURRENT_STRENGTH_NEW "MAXIMUM CURRENT" -to SDIO_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDIO_*
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDIO_DAT[*]
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDIO_CMD
+set_location_assignment PIN_AE17 -to VGA_R[0]
+set_location_assignment PIN_AE20 -to VGA_R[1]
+set_location_assignment PIN_AF20 -to VGA_R[2]
+set_location_assignment PIN_AH18 -to VGA_R[3]
+set_location_assignment PIN_AH19 -to VGA_R[4]
+set_location_assignment PIN_AF21 -to VGA_R[5]
+set_location_assignment PIN_AE19 -to VGA_G[0]
+set_location_assignment PIN_AG15 -to VGA_G[1]
+set_location_assignment PIN_AF18 -to VGA_G[2]
+set_location_assignment PIN_AG18 -to VGA_G[3]
+set_location_assignment PIN_AG19 -to VGA_G[4]
+set_location_assignment PIN_AG20 -to VGA_G[5]
+set_location_assignment PIN_AG21 -to VGA_B[0]
+set_location_assignment PIN_AA20 -to VGA_B[1]
+set_location_assignment PIN_AE22 -to VGA_B[2]
+set_location_assignment PIN_AF22 -to VGA_B[3]
+set_location_assignment PIN_AH23 -to VGA_B[4]
+set_location_assignment PIN_AH21 -to VGA_B[5]
+set_location_assignment PIN_AH22 -to VGA_HS
+set_location_assignment PIN_AG24 -to VGA_VS
+set_location_assignment PIN_AH27 -to VGA_EN
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to VGA_EN
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to VGA_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to VGA_*
+set_location_assignment PIN_AC24 -to AUDIO_L
+set_location_assignment PIN_AE25 -to AUDIO_R
+set_location_assignment PIN_AG26 -to AUDIO_SPDIF
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to AUDIO_*
+set_instance_assignment -name CURRENT_STRENGTH_NEW 8MA -to AUDIO_*
+set_location_assignment PIN_Y15 -to LED_USER
+set_location_assignment PIN_AA15 -to LED_HDD
+set_location_assignment PIN_AG28 -to LED_POWER
+set_location_assignment PIN_AH24 -to BTN_USER
+set_location_assignment PIN_AG25 -to BTN_OSD
+set_location_assignment PIN_AG23 -to BTN_RESET
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to LED_*
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to BTN_*
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to BTN_*
+source files.qip
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80_Pack.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80_ALU.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80_Reg.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80.vhd
+set_global_assignment -name VHDL_FILE ../../rtl/cpu/t80/T80pa.vhd
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_acc.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_csr_op.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_eg.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_exp2lin.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_exprom.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_kon.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_lfo.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_lin2exp.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_mmr.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_mod.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_noise.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_noise_lfsr.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_op.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_pg.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_phinc_rom.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_phrom.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_pm.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_reg.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_reg_ch.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_sh.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt51/jt51_timers.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt12_comb.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt12_interpol.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_acc.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_adpcm.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_ctrl.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_rom.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_serial.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_sh_rst.v
+set_global_assignment -name VERILOG_FILE ../../rtl/sound/jt6295/jt6295_timing.v
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sound/sf_sound.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ShadowForce.sv
+set_global_assignment -name SDC_FILE ShadowForce.sdc
+set_global_assignment -name QIP_FILE rtl/pll.qip
+set_global_assignment -name SEARCH_PATH ../../rtl
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/fx68k/fx68kAlu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/fx68k/uaddrPla.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/fx68k/fx68k.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/sf_m68k.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_romcache.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_memarb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_crtc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_tilemap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_fgmap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_sprite.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_dbg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sf_main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sf_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../integration/sf_download.sv
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

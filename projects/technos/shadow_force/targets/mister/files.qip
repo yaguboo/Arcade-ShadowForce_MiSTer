@@ -1,0 +1,145 @@
+# --------------------------------------------------------------------------
+# Technos "Shadow Force" -- source list
+#
+# Add files here, never through the Quartus IDE (it rewrites the .qsf).
+#
+# The jt51 and jt6295 file lists below are exactly the ones upstream's own
+# .qip names, minus one line each that the closure check showed is not
+# reachable with our parameters.  See docs/LICENSE_USAGE_REPORT.md and
+# tools/check_ip_closure.py.
+# --------------------------------------------------------------------------
+
+# ---- MiSTer board wrapper -------------------------------------------------
+set_global_assignment -name SYSTEMVERILOG_FILE ShadowForce.sv
+set_global_assignment -name SDC_FILE ShadowForce.sdc
+
+# ---- PLL (retargeted to 56.000 MHz; see rtl/pll/pll_0002.v) ---------------
+set_global_assignment -name QIP_FILE rtl/pll.qip
+
+# ---- where sf_rommap.svh is found by `include -----------------------------
+set_global_assignment -name SEARCH_PATH ../../rtl
+# fx68k loads its microcode with a BARE filename -- $readmemb("microrom.mem").
+# Before 2026-09-08 those .mem files sat next to fx68k.sv inside this project
+# and Quartus found them; they still sit next to it, now in third_party/.
+# The search path is declared EXPLICITLY here so that resolution does not
+# depend on where the source happens to live.  An unresolved $readmemb gives
+# an EMPTY microcode ROM and a 68000 that does nothing, which is not a failure
+# mode worth leaving to a tool's file-search order.
+set_global_assignment -name SEARCH_PATH ../../../../../third_party/cpu/fx68k
+# `include "sys/emu_ports.vh"` in the target wrapper is the standard MiSTer
+# idiom and is left exactly as upstream writes it.  With the framework now
+# shared from platforms/mister/, the directory that makes `sys/...` resolve is
+# platforms/mister itself, so it goes on the search path rather than editing
+# the include.  2026-09-08, docs/AUDIT_2026_CROSS_PROJECT.md Tier A.
+#
+# Found by RUNNING Quartus, not by grep: the wrapper .sv files were not in the
+# set of build files the path rewrite covered, and the failure is
+# "can't open Verilog Design File sys/emu_ports.vh" -- loud, but only at
+# elaboration.
+set_global_assignment -name SEARCH_PATH ../../../../../platforms/mister
+
+# ---- 68000 (fx68k, GPLv3, (c) Jorge Cwik) ---------------------------------
+# Vendored from Power Spikes' tree so all three families stay on one version.
+# Carries one local additive change inherited from NA-1/NA-2: the dbg_d7
+# port.  docs/LICENSE_USAGE_REPORT.md.
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../../../third_party/cpu/fx68k/fx68kAlu.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../../../third_party/cpu/fx68k/uaddrPla.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../../../../third_party/cpu/fx68k/fx68k.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/sf_m68k.sv
+
+# ---- board ----------------------------------------------------------------
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_sdram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_memarb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_crtc.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_tilemap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_fgmap.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_video.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_dbg.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sf_main.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sf_top.sv
+
+# ---- platform transport ---------------------------------------------------
+set_global_assignment -name SYSTEMVERILOG_FILE ../../integration/sf_download.sv
+
+# ---- Z80 (T80, BSD-3-Clause-style, (c) Daniel Wallner / Sorgelig et al.) ---
+# Vendored from Power Spikes' tree, where it runs on hardware.
+# T80_Pack.vhd is a package and must precede the units that use it.
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_Pack.vhd
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_ALU.vhd
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_Reg.vhd
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80.vhd
+set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80pa.vhd
+
+# ---- YM2151 (jt51, GPLv3, (c) Jose Tejada Gomez) --------------------------
+# jotego/jt51 @ 985a573dcfc1ff135553a39f7eae21d18ba57cbe, unmodified.
+# File set is exactly upstream's hdl/jt51.qip.
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_acc.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_csr_op.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_eg.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_exp2lin.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_exprom.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_kon.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_lfo.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_lin2exp.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_mmr.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_mod.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_noise.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_noise_lfsr.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_op.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_pg.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_phinc_rom.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_phrom.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_pm.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_reg.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_reg_ch.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_sh.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt51/jt51_timers.v
+
+# ---- OKI M6295 (jt6295, GPLv3, (c) Jose Tejada Gomez) ---------------------
+# jotego/jt6295 @ 7d76b0be8cd8f85f3ae741178c9830b20e2071a1, unmodified.
+# Upstream's hdl/jt6295.qip MINUS its last line, which points at
+# ../../jtframe/hdl/sound/jtframe_fir_mono.v in a different repository.  The
+# default INTERPOL=0 never instantiates it.  **INTERPOL MUST STAY 0.**
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt12_comb.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt12_interpol.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_acc.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_adpcm.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_ctrl.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_rom.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_serial.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_sh_rst.v
+set_global_assignment -name VERILOG_FILE ../../../../../third_party/audio/jt6295/jt6295_timing.v
+
+# ---- sound board ----------------------------------------------------------
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/sound/sf_sound.sv
+
+# --------------------------------------------------------------------------
+# NOT YET IN THE BUILD
+#
+# Sprites, and the D7 burst/repack work.
+#
+# ---- Z80 (T80, BSD-3-Clause-style, (c) Daniel Wallner / Sorgelig et al.) ---
+# Vendored from Power Spikes' tree, where it runs on hardware.
+# T80_Pack.vhd is a package and must precede the units that use it.
+#
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_Pack.vhd
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_ALU.vhd
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_MCode.vhd
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80_Reg.vhd
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80.vhd
+# set_global_assignment -name VHDL_FILE ../../../../../third_party/cpu/t80/T80pa.vhd
+#
+# ---- YM2151 (jt51, GPLv3, (c) Jose Tejada Gomez) --------------------------
+# jotego/jt51 @ 985a573dcfc1ff135553a39f7eae21d18ba57cbe, unmodified.
+# File set is exactly upstream's hdl/jt51.qip.
+#
+# ---- OKI M6295 (jt6295, GPLv3, (c) Jose Tejada Gomez) ---------------------
+# jotego/jt6295 @ 7d76b0be8cd8f85f3ae741178c9830b20e2071a1, unmodified.
+# File set is upstream's hdl/jt6295.qip MINUS its last line, which points at
+# ../../jtframe/hdl/sound/jtframe_fir_mono.v in a different repository.  The
+# default INTERPOL=0 never instantiates it.  **INTERPOL must stay 0** or that
+# file becomes a real dependency.
+# --------------------------------------------------------------------------
