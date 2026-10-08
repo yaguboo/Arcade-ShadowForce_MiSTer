@@ -38,7 +38,7 @@ DE10-Nano(MiSTer)에서 그림·스프라이트·타일맵 세 장·팔레트·�
 | MAME 세트 | 공식 명칭 | 상태 |
 |---|---|---|
 | `shadfrce` | Shadow Force (World, Version 3) | **실기에서 플레이 확인.** 그림·사운드·입력 정상, 펀치+킥 동시입력 빙의까지 확인 |
-| `shadfrceu` | Shadow Force (US, Version 2) | **실기에서 플레이 확인.** 6버튼(전용 빙의 버튼 포함), 미국판 전용 DSW2 기본값 `0xFB` |
+| `shadfrceu` | Shadow Force (US, Version 2) | **실기에서 플레이 확인.** 6버튼, 미국판 전용 DSW2 기본값 `0xFB` |
 | `shadfrcej` | Shadow Force - Henshin Ninja (Japan, Version 2) | **실기에서 플레이 확인.** 그림·사운드·입력(코인·스타트·게임 진행) 정상 |
 
 세 세트 모두 하나의 코어(`ShadowForce.rbf`)를 사용하며, 세트별 차이(ROM,
