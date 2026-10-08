@@ -336,13 +336,19 @@ module sf_video #(
   // `(pen * data) >> 8`, is `pen * data / 256` -- so at data = 255 it gives
   // 254 where MAME gives 255, and EVERY colour is 0.4 % dark on every frame.
   //
-  // `pen * (data + 1) >> 8` is exact at both ends (0 -> 0, 255 -> 255) and
-  // within one LSB in between, for one extra adder.  Checked against MAME's
-  // arithmetic rather than eyeballed.
-  wire [8:0]  brt1 = {1'b0, screen_brt} + 9'd1;
-  wire [16:0] rm = r8 * brt1;
-  wire [16:0] gm = g8 * brt1;
-  wire [16:0] bm = b8 * brt1;
+  // `pen * (data + 1) >> 8` stood here as "exact at both ends, within one
+  // LSB in between" -- and the in-between was one LSB HIGH on 1,892 of the
+  // 8,192 (pen, data) pairs, which is every fade frame (19,558 pixels off on
+  // the golden t136 frame).  MAME is trunc(pen * float(data/255)), which is
+  // floor(pen*data/255) on all 8,192 pairs (checked exhaustively), and
+  //     floor(x/255) == (x + (x>>8) + 1) >> 8      for every x <= 65025
+  // (also checked exhaustively).  Two adders, no divider, exact.
+  wire [15:0] rp = r8 * screen_brt;
+  wire [15:0] gp = g8 * screen_brt;
+  wire [15:0] bp = b8 * screen_brt;
+  wire [16:0] rm = {1'b0, rp} + {9'd0, rp[15:8]} + 17'd1;
+  wire [16:0] gm = {1'b0, gp} + {9'd0, gp[15:8]} + 17'd1;
+  wire [16:0] bm = {1'b0, bp} + {9'd0, bp[15:8]} + 17'd1;
 
   // video_enable is 1D0006 bit 3.  MAME fills the frame with the black pen
   // when it is clear, so a core that ignores it shows a frame the real board

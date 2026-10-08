@@ -50,6 +50,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/cpu/sf_m68k.sv
 # ---- board ----------------------------------------------------------------
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_memarb.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/memory/sf_romcache4.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_crtc.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_tilemap.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../rtl/video/sf_fgmap.sv

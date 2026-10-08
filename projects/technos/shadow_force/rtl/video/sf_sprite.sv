@@ -221,14 +221,17 @@ module sf_sprite #(
   // there -- the first cut of D23 closed the 56 MHz core clock at +0.388 and
   // missed on HDMI.
   //
-  // Registering it adds a stage, so the address runs one pixel AHEAD to keep
-  // the latency the single-array version had: rd_q at clock T then holds the
-  // pixel for hcnt at T-1, exactly as `rd_q <= lbuf[{~wsel, hcnt}]` did.  The
-  // wrap at hcnt 511 is in blanking and was there before.
-  // Under flip the pixel shown at beam position h is source column
-  // H_VISIBLE-1-h, and the address still runs one ahead of what it shows, so
-  // the mirror is H_VISIBLE-h rather than H_VISIBLE-1-h.
-  wire [8:0] hnx = flip ? (H_VISIBLE[8:0] - hcnt[8:0]) : (hcnt[8:0] + 9'd1);
+  // Registering it adds a CLOCK, not a pixel.  `hcnt` holds for eight clocks
+  // (ce_pix), so the two-clock read lands inside the same pixel and the
+  // address is simply hcnt -- exactly what the tile layers use.  This used to
+  // run one pixel AHEAD (hcnt+1, and H_VISIBLE-hcnt under flip) on the
+  // reasoning that a stage of delay needs a pixel of lead; that reasoning
+  // holds only if hcnt advanced every clock.  It put the whole sprite layer
+  // ONE PIXEL LEFT of the tilemaps: golden comparison (sim/golden, MAME state
+  // into this RTL) had 5,447 of 5,813 differing pixels at FPGA(x)==MAME(x+1),
+  // and 0 differing on seven frames after this line changed (DEBUG_LOG
+  // O-WATER).  Flip stays an exact 180-degree rotation of the unflipped frame.
+  wire [8:0] hnx = flip ? (H_VISIBLE[8:0] - 9'd1 - hcnt[8:0]) : hcnt[8:0];
   always @(posedge clk) begin
     rd_e   <= lbuf_e[{~wsel, hnx[8:1]}];
     rd_o   <= lbuf_o[{~wsel, hnx[8:1]}];

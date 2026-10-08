@@ -426,7 +426,7 @@ module sf_top (
   // three graphics layers that already over-subscribe the line.
   wire [19:1] rc_a;
   wire [15:0] rc_q;
-  wire        rc_rd, rc_ack;
+  wire        rc_rd, rc_ack, rc_hold;
 
   wire [8:0]  bg0_scrollx, bg0_scrolly, bg1_scrollx, bg1_scrolly;
   wire        video_enable;
@@ -855,12 +855,17 @@ module sf_top (
   // Each field must be exactly 25 bits.  A concatenation one field too wide
   // truncates from the MSB and silently shifts every client's address down a
   // slot, which reads as "the CPU fetches garbage".
-  sf_romcache #(.AW(19)) u_romcache (
+  // sf_romcache4: 16K words, 4-way, 4-word lines filled as one held group.
+  // The 1K direct-mapped sf_romcache that stood here missed ~7,100 times a
+  // frame in the Tengu demo and held the 68000 to ~70 % of MAME's reads
+  // (DEBUG_LOG O-TENGU); the header of sf_romcache4 has the replay numbers.
+  sf_romcache4 #(.AW(19)) u_romcache (
       // Invalidated for the whole download: the ROM it caches is being
       // written during it.
       .clk(clk), .rst(rst | dl_active),
       .c_a(cpu_rom_a), .c_rd(cpu_rom_rd), .c_ack(cpu_rom_ack), .c_q(cpu_rom_q),
-      .m_a(rc_a),      .m_rd(rc_rd),      .m_ack(rc_ack),      .m_q(rc_q)
+      .m_a(rc_a),      .m_rd(rc_rd),      .m_hold(rc_hold),
+      .m_ack(rc_ack),  .m_q(rc_q)
   );
 
   wire [24:0] cpu_rom_word = MAINCPU_BASE_W + {6'd0, rc_a};
@@ -916,7 +921,8 @@ module sf_top (
   // pointless and went stale when that layout changed.
   // Hold follows the client, so it moves with it.
   // Only the video clients hold, and they moved up one place each.
-  assign arb_hold = {2'b00, crom_hold, tile0_hold, tile_hold, srom_hold, 2'b00};
+  // The CPU holds too now: a cache line fill is four consecutive words.
+  assign arb_hold = {rc_hold, 1'b0, crom_hold, tile0_hold, tile_hold, srom_hold, 2'b00};
   assign arb_din  = {112'd0, dl_data};
   assign arb_ds   = {14'd0, 2'b11};
 

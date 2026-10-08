@@ -225,10 +225,20 @@ module sf_main #(
   // MAME clears `offset ^ 3`, so the word at 1D0000 acks level 3 and the word
   // at 1D0004 acks level 1.  a[2:1] is that offset.
   //
-  // The raster compare is the one interrupt whose real behaviour is unknown:
-  // MAME increments the compare register itself on every match, which no
-  // plausible hardware register does.  docs/MAME_NOTES.md section 1.1.  A
-  // straight compare is implemented here and the difference is expected.
+  // The raster compare WALKS: after a match it fires again on the next line,
+  // wrapping at 240, so once armed it raises level 1 on every line 0..239.
+  //
+  // EMULATION_DERIVED
+  // Matches MAME shadfrce.cpp:552-556 and FBNeo d_shadfrce.cpp:777-779 --
+  // the two references agree, and the GAME needs it: the title's "FORCE" is
+  // in bg0 map rows 16-31 only and reaches the screen solely because the
+  // level-1 handler writes bg0 scrolly per line (0x0100 on raw lines
+  // ~100-181, 241 scroll writes a frame).  The straight compare that stood
+  // here fired once a frame, the handler's line table advanced one step a
+  // frame, and FORCE showed only when that phase happened to line up
+  // (DEBUG_LOG O-LOGO; A2's "no hardware does that" was the wrong call).
+  // The actual PCB source of the per-line interrupt is NOT verified.
+  // TODO(HARDWAREIZE): an hblank interrupt gated by 1D0006 bit 2?
   // ---------------------------------------------------------------------
   reg        irq1, irq2, irq3;
   reg        irqs_enable, raster_arm, prev_bit2;
@@ -265,7 +275,10 @@ module sf_main #(
           irq2 <= 1'b1;
           dbg_irq2_count <= dbg_irq2_count + 16'd1;
         end
-        if (raster_arm  && (vcnt == raster_line)) irq1 <= 1'b1;
+        if (raster_arm  && (vcnt == raster_line)) begin
+          irq1        <= 1'b1;
+          raster_line <= (raster_line == 9'd239) ? 9'd0 : raster_line + 9'd1;
+        end
       end
 
       // --- control and acknowledge ---------------------------------------
